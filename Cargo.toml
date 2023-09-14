@@ -17,7 +17,7 @@ description = "A pure-Rust implementation of Bulletproofs using Ristretto"
 edition = "2018"
 
 [dependencies]
-curve25519-dalek = {package = "tari-curve25519-dalek", git = "https://github.com/tari-project/curve25519-dalek", version = "4.0.3", default-features = false, features = ["alloc", "zeroize", "rand_core","precomputed-tables","digest"] }
+curve25519-dalek = {package = "tari-curve25519-dalek", version = "4.0.3", default-features = false, features = ["alloc", "zeroize", "rand_core","precomputed-tables","digest"] }
 subtle = { package = "subtle", version = "2.4", default-features = false }
 sha3 = { version = "0.10", default-features = false }
 blake2 = "0.10"
