@@ -2,7 +2,7 @@
 
 #[macro_use]
 extern crate criterion;
-use criterion::Criterion;
+use criterion::{Criterion, BenchmarkId};
 
 // Code below copied from ../tests/r1cs.rs
 //
@@ -152,24 +152,27 @@ fn bench_kshuffle_prove(c: &mut Criterion) {
     let pc_gens = PedersenGens::default();
     let bp_gens = BulletproofGens::new(2 * MAX_SHUFFLE_SIZE, 1);
 
-    c.bench_function_over_inputs(
-        "k-shuffle proof creation",
-        move |b, k| {
-            // Generate inputs and outputs to kshuffle
-            let mut rng = rand::thread_rng();
-            let (min, max) = (0u64, std::u64::MAX);
-            let input: Vec<Scalar> = (0..*k).map(|_| Scalar::from(rng.gen_range(min, max))).collect();
-            let mut output = input.clone();
-            output.shuffle(&mut rand::thread_rng());
+    let mut group = c.benchmark_group("k-shuffle proof creation");
+    for k in (1..=LG_MAX_SHUFFLE_SIZE).map(|i| 1 << i).collect::<Vec<_>>() {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(k),
+            &k,
+            |b, k| {
+                // Generate inputs and outputs to kshuffle
+                let mut rng = rand::thread_rng();
+                let (min, max) = (0u64, std::u64::MAX);
+                let input: Vec<Scalar> = (0..*k).map(|_| Scalar::from(rng.gen_range(min..max))).collect();
+                let mut output = input.clone();
+                output.shuffle(&mut rand::thread_rng());
 
-            // Make kshuffle proof
-            b.iter(|| {
-                let mut prover_transcript = Transcript::new(b"ShuffleBenchmark");
-                ShuffleProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, &input, &output).unwrap();
-            })
-        },
-        (1..=LG_MAX_SHUFFLE_SIZE).map(|i| 1 << i).collect::<Vec<_>>(),
-    );
+                // Make kshuffle proof
+                b.iter(|| {
+                    let mut prover_transcript = Transcript::new(b"ShuffleBenchmark");
+                    ShuffleProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, &input, &output).unwrap();
+                })
+            },
+        );
+    }
 }
 
 criterion_group! {
@@ -186,40 +189,43 @@ fn bench_kshuffle_verify(c: &mut Criterion) {
     let pc_gens = PedersenGens::default();
     let bp_gens = BulletproofGens::new(2 * MAX_SHUFFLE_SIZE, 1);
 
-    c.bench_function_over_inputs(
-        "k-shuffle proof verification",
-        move |b, k| {
-            // Generate the proof in its own scope to prevent reuse of
-            // prover variables by the verifier
-            let (proof, input_commitments, output_commitments) = {
-                // Generate inputs and outputs to kshuffle
-                let mut rng = rand::thread_rng();
-                let (min, max) = (0u64, std::u64::MAX);
-                let input: Vec<Scalar> = (0..*k).map(|_| Scalar::from(rng.gen_range(min, max))).collect();
-                let mut output = input.clone();
-                output.shuffle(&mut rand::thread_rng());
+    let mut group = c.benchmark_group("k-shuffle proof verification");
+    for k in (1..=LG_MAX_SHUFFLE_SIZE).map(|i| 1 << i).collect::<Vec<_>>() {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(k),
+            &k,
+            |b, k| {
+                // Generate the proof in its own scope to prevent reuse of
+                // prover variables by the verifier
+                let (proof, input_commitments, output_commitments) = {
+                    // Generate inputs and outputs to kshuffle
+                    let mut rng = rand::thread_rng();
+                    let (min, max) = (0u64, std::u64::MAX);
+                    let input: Vec<Scalar> = (0..*k).map(|_| Scalar::from(rng.gen_range(min..max))).collect();
+                    let mut output = input.clone();
+                    output.shuffle(&mut rand::thread_rng());
 
-                let mut prover_transcript = Transcript::new(b"ShuffleBenchmark");
+                    let mut prover_transcript = Transcript::new(b"ShuffleBenchmark");
 
-                ShuffleProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, &input, &output).unwrap()
-            };
+                    ShuffleProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, &input, &output).unwrap()
+                };
 
-            // Verify kshuffle proof
-            b.iter(|| {
-                let mut verifier_transcript = Transcript::new(b"ShuffleBenchmark");
-                proof
-                    .verify(
-                        &pc_gens,
-                        &bp_gens,
-                        &mut verifier_transcript,
-                        &input_commitments,
-                        &output_commitments,
-                    )
-                    .unwrap();
-            })
-        },
-        (1..=LG_MAX_SHUFFLE_SIZE).map(|i| 1 << i).collect::<Vec<_>>(),
-    );
+                // Verify kshuffle proof
+                b.iter(|| {
+                    let mut verifier_transcript = Transcript::new(b"ShuffleBenchmark");
+                    proof
+                        .verify(
+                            &pc_gens,
+                            &bp_gens,
+                            &mut verifier_transcript,
+                            &input_commitments,
+                            &output_commitments,
+                        )
+                        .unwrap();
+                })
+            },
+        );
+    }
 }
 
 criterion_group! {
